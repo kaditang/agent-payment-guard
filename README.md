@@ -12,6 +12,8 @@ The payment rails (x402 / Coinbase AgentKit, Stripe, Skyfire) give you the abili
 money. **Neither gives you the gate that decides whether a specific payment is safe to make.**
 This is that gate.
 
+**Works with:** Claude Agent SDK · Vercel AI SDK · Coinbase AgentKit · LangChain / LangGraph · CrewAI · any x402 client (JS + Python). One line, fail-closed by default.
+
 <!-- Record a ~10s terminal GIF of `node demo.mjs` (scenario 2 getting blocked) and drop it here: -->
 <!-- ![demo](./demo.gif) -->
 
