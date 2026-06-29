@@ -61,12 +61,21 @@ node demo.mjs --live     # REAL $0.002 x402 calls to https://402sentinel.com/api
 
 ## Wire it into your agent
 
-- **Claude Agent SDK** — `agent-sdk-hook.ts`: a `PreToolUse` hook returns
-  `{ permissionDecision: "deny" }` so the agent *literally cannot* call its payment tool on a
-  flagged payment.
-- **Any framework / x402 client** — call `paymentGuard(toolInput, ctx)` from `guard.mjs`
-  right before you sign. `ctx.intended` = what the human approved (enables intent-mismatch);
-  `ctx.untrustedText` = any page/tool output the agent acted on (enables injection-destination).
+**The universal pattern:** call `paymentGuard()` at the top of whatever tool moves money, and
+don't pay when it says no. Drop-in examples for every major framework:
+
+| Framework | Example |
+| --- | --- |
+| Claude Agent SDK (`PreToolUse` hook → `permissionDecision: "deny"`) | [`agent-sdk-hook.ts`](./agent-sdk-hook.ts) |
+| Vercel AI SDK (gate a `tool({ execute })`) | [`examples/vercel-ai-sdk.ts`](./examples/vercel-ai-sdk.ts) |
+| Coinbase AgentKit (gate a `customActionProvider` action) | [`examples/coinbase-agentkit.ts`](./examples/coinbase-agentkit.ts) |
+| LangChain / LangGraph (Python `@tool`) | [`examples/langchain.py`](./examples/langchain.py) |
+| CrewAI (Python `@tool`) | [`examples/crewai.py`](./examples/crewai.py) |
+
+JS/TS imports `paymentGuard` from this package. Python uses the matching
+[`examples/pay_guard.py`](./examples/pay_guard.py) drop-in (same fail-closed gate, stdlib only).
+`ctx.intended` = what the human approved (enables intent-mismatch); `ctx.untrustedText` = any
+page/tool output the agent acted on (enables injection-destination).
 
 ## What the firewall checks
 
