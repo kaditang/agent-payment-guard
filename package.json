@@ -1,6 +1,6 @@
 {
   "name": "@kaditang/agent-payment-guard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pre-pay risk gate for autonomous payment agents — block prompt-injected destinations, intent mismatches, overcharges and drains before your agent signs. Backed by 402Sentinel; drops into the Claude Agent SDK, x402/AgentKit, or any framework.",
   "type": "module",
   "main": "index.mjs",
@@ -23,7 +23,8 @@
   ],
   "scripts": {
     "demo": "node demo.mjs",
-    "demo:live": "node demo.mjs --live"
+    "demo:live": "node demo.mjs --live",
+    "test": "node --test"
   },
   "keywords": [
     "x402",

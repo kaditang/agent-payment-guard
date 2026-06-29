@@ -22,24 +22,38 @@ function extractPayment(toolInput) {
 
 /**
  * @param toolInput  the arguments the agent wants to call its payment tool with
- * @param ctx        { agentId, intended:{payto,max_amount}, untrustedText, source, live, payerKey }
+ * @param ctx        { agentId, intended:{payto,max_amount}, untrustedText, source, live, payerKey, failOpen }
  *                   `intended` = what the human/task actually authorized (enables intent-mismatch
  *                   detection); `untrustedText` = any tool/page output the agent acted on
  *                   (enables prompt-injection-destination detection).
+ *                   `failOpen` (default false) = if the firewall can't be reached, ALLOW the
+ *                   payment instead of blocking it. Leave it false — a safety gate that can't
+ *                   verify safety should not let money move.
  * @returns { allow:boolean, decision, reason, signals }
  */
 export async function paymentGuard(toolInput, ctx = {}) {
   const payment = extractPayment(toolInput);
   if (!payment) return { allow: true, decision: "allow", reason: "not a payment tool call", signals: [] };
 
-  const verdict = await assessPayment(
-    {
-      agent_id: ctx.agentId || "demo-agent",
-      payment,
-      context: { source: ctx.source, untrusted_text: ctx.untrustedText, intended: ctx.intended },
-    },
-    { live: ctx.live, payerKey: ctx.payerKey },
-  );
+  let verdict;
+  try {
+    verdict = await assessPayment(
+      {
+        agent_id: ctx.agentId || "demo-agent",
+        payment,
+        context: { source: ctx.source, untrusted_text: ctx.untrustedText, intended: ctx.intended },
+      },
+      { live: ctx.live, payerKey: ctx.payerKey },
+    );
+  } catch (err) {
+    // FAIL-CLOSED by default: if we can't verify the payment is safe, don't let it through.
+    // A gate that fails open is worse than no gate — it gives false confidence. Opt out with
+    // ctx.failOpen=true only if you'd rather the agent keep paying when 402Sentinel is down.
+    const msg = err?.message || String(err);
+    return ctx.failOpen
+      ? { allow: true, decision: "allow", reason: `firewall unreachable — failing OPEN: ${msg}`, signals: [], error: true }
+      : { allow: false, decision: "block", reason: `firewall unreachable — failing CLOSED: ${msg}`, signals: [], error: true };
+  }
 
   const allow = verdict.decision === "allow";
   const reason = allow
