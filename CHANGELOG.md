@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1
+
+- Verified and now covered by tests against **`@x402/fetch`** (v2, ~426k installs/mo) as well as
+  `x402-fetch` (v1, ~96k). The two generations read the challenge from different places — a
+  `payment-required` header vs the JSON body — and the guard sits correctly on both. 0.3.0 already
+  behaved correctly here; only the test coverage was aimed at the smaller client.
+- A seller offering two rails usually fails both for the same reason, and the block message
+  printed that reason twice. One reason, stated once.
+
 ## 0.3.0
 
 **The guard now drops onto the x402 payment path itself** (`@kaditang/agent-payment-guard/x402`),

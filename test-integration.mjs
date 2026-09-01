@@ -12,6 +12,11 @@ import { tmpdir } from "node:os";
 import { guardedFetch, PaymentBlockedError } from "./x402.mjs";
 import { createPolicy } from "./policy.mjs";
 
+// Two generations of buyer client are live, and the SCOPED one is much the larger:
+//   x402-fetch    (v1, unscoped)  ~96k installs/mo — challenge in the JSON body
+//   @x402/fetch   (v2, scoped)   ~426k installs/mo — challenge in the payment-required header
+// The guard has to sit correctly on both, so both are exercised here against a real server.
+
 let wrapFetchWithPayment;
 try {
   ({ wrapFetchWithPayment } = await import("x402-fetch"));
@@ -115,3 +120,57 @@ if (wrapFetchWithPayment) {
     assert.equal(hits, 1);
   });
 }
+
+// --------------------------------------------------------------------------- @x402/fetch (v2)
+
+let wrapV2, x402ClientCtor, x402HTTPClientCtor;
+try {
+  ({ wrapFetchWithPayment: wrapV2 } = await import("@x402/fetch"));
+  ({ x402Client: x402ClientCtor, x402HTTPClient: x402HTTPClientCtor } = await import("@x402/core/client"));
+} catch {
+  /* optional devDependency */
+}
+
+await test(
+  "@x402/fetch (v2, the larger client) is guarded on a header-borne challenge",
+  { skip: wrapV2 ? false : "@x402/fetch not installed" },
+  async () => {
+    const SELLER = "0xDc9F94A8b93F070B58cfa580cbE740d763005FE6";
+    const PINS2 = join(tmpdir(), `apg-v2-${process.pid}.json`);
+    rmSync(PINS2, { force: true });
+
+    let hits = 0;
+    const srv2 = createServer((req, res) => {
+      hits++;
+      const doc = {
+        x402Version: 2,
+        error: "Payment required",
+        resource: { url: `http://127.0.0.1:${srv2.address().port}/api`, description: "d", mimeType: "" },
+        accepts: [
+          { scheme: "exact", network: "eip155:8453", amount: "3000", asset: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", payTo: SELLER, maxTimeoutSeconds: 300, extra: { name: "USD Coin", version: "2" } },
+        ],
+      };
+      // v2 puts the challenge in the header and leaves the body empty — the exact shape our
+      // own servers emit, and the one a body-reading v1 client cannot see at all.
+      res.writeHead(402, { "content-type": "application/json", "payment-required": Buffer.from(JSON.stringify(doc)).toString("base64") });
+      res.end("{}");
+    });
+    await new Promise((r) => srv2.listen(0, "127.0.0.1", r));
+    const url = `http://127.0.0.1:${srv2.address().port}/api`;
+
+    const client = new x402HTTPClientCtor(new x402ClientCtor());
+    const guarded = wrapV2(guardedFetch(fetch, { maxAmount: 0.001, requireHttps: false, pins: { file: PINS2 } }), client);
+    const err = await guarded(url).then(
+      () => null,
+      (e) => e,
+    );
+    assert.ok(err instanceof PaymentBlockedError, `expected a block, got ${err && err.message}`);
+    assert.match(err.detail, /\$0\.003 exceeds maxAmount/);
+    assert.equal(hits, 1, "no second, paid request");
+    assert.equal((err.detail.match(/exceeds maxAmount/g) || []).length, 1, "one reason, stated once");
+
+    srv2.closeAllConnections?.();
+    srv2.close();
+    rmSync(PINS2, { force: true });
+  },
+);

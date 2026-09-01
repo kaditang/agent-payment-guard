@@ -1,6 +1,6 @@
 {
   "name": "@kaditang/agent-payment-guard",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Pre-pay risk gate for autonomous payment agents \u2014 drops onto the x402 payment path itself (x402-fetch / x402-axios), so every 402 is vetted before your agent signs. Blocks payTo swaps, overcharges, budget drains and prompt-injected destinations. Backed by 402Sentinel.",
   "type": "module",
   "main": "index.mjs",
@@ -77,6 +77,8 @@
     "node": ">=18"
   },
   "devDependencies": {
+    "@x402/core": "^2.24.0",
+    "@x402/fetch": "^2.24.0",
     "axios": "^1.20.0",
     "x402-axios": "1.2.0",
     "x402-fetch": "^1.2.0"

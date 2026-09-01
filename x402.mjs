@@ -148,7 +148,9 @@ export async function vetChallenge(policy, norm, escalate) {
     if (res.decision === "block") {
       // A counterparty failure is not repaired by picking the other rail: the seller itself
       // is what failed. Stop, rather than quietly paying via whichever option still passes.
-      hardDetail = hardDetail ? `${hardDetail}; ${res.detail}` : res.detail;
+      // Both rails usually fail for the SAME reason (one price, one seller), so joining the
+      // per-option details verbatim prints the same sentence twice at the user.
+      hardDetail = hardDetail ? (hardDetail.includes(res.detail) ? hardDetail : `${hardDetail}; ${res.detail}`) : res.detail;
       continue;
     }
     if (res.decision === "skip") continue;
