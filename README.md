@@ -14,6 +14,8 @@ This is that gate.
 
 **Works with:** Claude Agent SDK · Vercel AI SDK · Coinbase AgentKit · LangChain / LangGraph · CrewAI · any x402 client (JS + Python). One line, fail-closed by default.
 
+**New in 0.3 — [drop it onto the x402 payment path itself](#drop-in-for-x402-fetch--x402-axios).** No per-call wiring: wrap the fetch once and every 402 your agent answers is vetted before a signature exists.
+
 <!-- Record a ~10s terminal GIF of `node demo.mjs` (scenario 2 getting blocked) and drop it here: -->
 <!-- ![demo](./demo.gif) -->
 
@@ -59,6 +61,98 @@ $ node demo.mjs
 node demo.mjs            # MOCK firewall — zero deps, instant; shows the gate logic
 node demo.mjs --live     # REAL $0.002 x402 calls to https://402sentinel.com/api/firewall
                          #   npm i @x402/core @x402/evm viem  +  CLIENT_PRIVATE_KEY (Base-USDC-funded)
+```
+
+## Drop-in for x402-fetch / x402-axios
+
+`paymentGuard()` protects the payments you remembered to wrap. This protects **all of them** —
+it sits on the path `x402-fetch` and `x402-axios` already run, and reads the 402 challenge
+before `createPaymentHeader()` is ever called.
+
+```diff
+  import { wrapFetchWithPayment } from "x402-fetch";
++ import { guardedFetch } from "@kaditang/agent-payment-guard/x402";
+
+- const fetchWithPay = wrapFetchWithPayment(fetch, signer);
++ const fetchWithPay = wrapFetchWithPayment(
++   guardedFetch(fetch, { maxAmount: 0.05, dailyBudget: 5 }),
++   signer,
++ );
+```
+
+A blocked payment throws `PaymentBlockedError` — the agent never signs, and no second
+(paid) request is made.
+
+For **axios**, guard the instance before `withPaymentInterceptor` attaches to it:
+
+```js
+import axios from "axios";
+import { withPaymentInterceptor } from "x402-axios";
+import { guardAxios } from "@kaditang/agent-payment-guard/x402";
+
+const client = withPaymentInterceptor(
+  await guardAxios(axios.create(), { maxAmount: 0.05, dailyBudget: 5 }),
+  signer,
+);
+```
+
+`guardAxios` is async because axios stores `defaults.adapter` as a list of adapter *names*
+(`["xhr","http","fetch"]`), and resolving it to a function needs axios' own `getAdapter`.
+If you would rather not touch the adapter, pass `guardSelector(opts)` as the
+`paymentRequirementsSelector` argument instead — local checks only, since that hook is sync.
+
+### What it checks — locally, free, on every call
+
+| signal | what it catches |
+| --- | --- |
+| `payto_changed` | this resource's `payTo` is not the one you paid last time — a hijacked or spoofed endpoint. Pinned trust-on-first-use per **host + path + rail** (query strings excluded). Not per host: real sellers split collection across product lines — blockrun.ai pays `/exa/*` to one address, `/pm/*` to a second and `/surf/*` to a third, all on Base — and a host-level pin calls the second and third a hijack. |
+| `resource_host_mismatch` | the challenge advertises a different host than the one that served it — an attempt to borrow, or poison, another seller's pin. The host used for policy is always the URL the request actually reached, never the one the challenge claims. |
+| `amount_over_cap` | the challenge asks for more than `maxAmount` |
+| `amount_unparseable` | the price can't be read, so the cap can't be enforced — blocked rather than waved through |
+| `hourly_budget` / `daily_budget` | a slow drain across many small, individually-fine payments |
+| `denylisted_payto` / `not_allowlisted` | counterparties you have ruled in or out (matched case-insensitively for EVM, exactly for base58 Solana) |
+| `insecure_transport` | the challenge arrived over plaintext HTTP, where it can be rewritten in flight |
+| `payto_rotation` | a host presenting more than `maxNewPayToPerHost` (default 8) distinct new `payTo` addresses within an hour. A seller with a few collection addresses stays well under it; one minting a fresh address per challenge blows past it in seconds. The rotation *is* the fraud signal — and blocking it is also what stops a hostile seller from billing your agent for an unbounded number of paid checks. |
+| `network_not_allowed` | narrows *which* rail to pay; it never silently blocks a seller you trust |
+
+Both live challenge formats are parsed: v2 (`payment-required` header, `amount`, CAIP-2
+networks) and v1 (JSON body, `maxAmountRequired`, short network names).
+
+A **counterparty** failure blocks the payment outright — a bad seller is not repaired by
+paying it on a different chain. A **selection** failure only drops that one option.
+
+### Escalating to the paid firewall
+
+The local checks cost nothing. 402Sentinel's full firewall ($0.002/call) is opt-in, and by
+default fires only on a `payTo` this agent has never paid before:
+
+```js
+guardedFetch(fetch, {
+  maxAmount: 0.05,
+  sentinel: { on: "new-payto", live: true, payerKey: process.env.CLIENT_PRIVATE_KEY },
+});
+```
+
+`on: "always"` checks every payment; `"never"` disables it. Verdicts are cached per `payTo`
+for 24h. If 402Sentinel is unreachable the local verdict stands and a `sentinel_unreachable`
+signal is emitted — an add-on outage should not strand an agent the local policy already
+cleared. Set `sentinel.strict: true` to make unreachability a hard stop instead.
+
+Every escalation spends **your** money, so escalations are capped at
+`sentinel.maxChecksPerHour` (default 50). Hitting the ceiling stops the spending, not the
+agent — otherwise a hostile seller could deny you service just by burning the budget.
+
+### Budgets and pins
+
+Spend is committed on the **paid retry**, not on the challenge, so a failed payment never
+eats budget. Pins live in `~/.agent-payment-guard/pins.json` (`pins: { file }` to relocate,
+`pins: { persist: false }` for in-process only). When a seller legitimately rotates its
+address, re-pin deliberately:
+
+```js
+const policy = createPolicy({ maxAmount: 0.05 });
+policy.trustPayTo("https://seller.example/api", newPayTo, "eip155:8453"); // host+path+rail
+guardedFetch(fetch, { policy });
 ```
 
 ## Wire it into your agent

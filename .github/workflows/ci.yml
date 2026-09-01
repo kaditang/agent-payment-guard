@@ -11,4 +11,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: node --test
+      # Installs the x402-fetch devDependency, without which the integration tests — the
+      # ones that prove the guard actually sits on x402's payment path — silently skip.
+      - run: npm install --no-audit --no-fund
+      - run: npm test

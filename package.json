@@ -1,13 +1,15 @@
 {
   "name": "@kaditang/agent-payment-guard",
-  "version": "0.2.1",
-  "description": "Pre-pay risk gate for autonomous payment agents — block prompt-injected destinations, intent mismatches, overcharges and drains before your agent signs. Backed by 402Sentinel; drops into the Claude Agent SDK, x402/AgentKit, or any framework.",
+  "version": "0.3.0",
+  "description": "Pre-pay risk gate for autonomous payment agents \u2014 drops onto the x402 payment path itself (x402-fetch / x402-axios), so every 402 is vetted before your agent signs. Blocks payTo swaps, overcharges, budget drains and prompt-injected destinations. Backed by 402Sentinel.",
   "type": "module",
   "main": "index.mjs",
   "exports": {
     ".": "./index.mjs",
     "./guard": "./guard.mjs",
-    "./sentinel": "./sentinel.mjs"
+    "./sentinel": "./sentinel.mjs",
+    "./x402": "./x402.mjs",
+    "./policy": "./policy.mjs"
   },
   "bin": {
     "agent-payment-guard": "demo.mjs"
@@ -16,6 +18,8 @@
     "index.mjs",
     "guard.mjs",
     "sentinel.mjs",
+    "x402.mjs",
+    "policy.mjs",
     "agent-sdk-hook.ts",
     "demo.mjs",
     "examples",
@@ -41,7 +45,10 @@
     "counterparty-risk",
     "402sentinel",
     "usdc",
-    "autonomous-payments"
+    "autonomous-payments",
+    "x402-fetch",
+    "x402-axios",
+    "payto-pinning"
   ],
   "homepage": "https://402sentinel.com",
   "repository": {
@@ -68,5 +75,10 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "axios": "^1.20.0",
+    "x402-axios": "1.2.0",
+    "x402-fetch": "^1.2.0"
   }
 }
