@@ -30,7 +30,8 @@
   "scripts": {
     "demo": "node demo.mjs",
     "demo:live": "node demo.mjs --live",
-    "test": "node --test"
+    "test": "node --test",
+    "prepublishOnly": "npm whoami >/dev/null 2>&1 || { echo ''; echo '  x npm auth expired (or registry unreachable) -- run: npm login'; echo '    Publishing while logged out fails with a MISLEADING E404 \"not in this registry\",'; echo '    never a 401, and the package name/version are fine. Hit 4x: 0.1.0 0.2.1 0.3.0 0.3.2.'; echo '    Override (registry flaky, auth actually fine): npm publish --ignore-scripts'; echo ''; exit 1; }"
   },
   "keywords": [
     "x402",
