@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.2
+
+Docs only — no behaviour change.
+
+- The README led with `x402-fetch` (v1). Measured 2026-09-06 against `axios` as a reference for
+  what real developer adoption looks like (weekend/weekday download ratio 0.45): **`@x402/fetch`
+  (v2) is 0.68 — human-shaped, ~426k installs/mo — while `x402-fetch` (v1) is 0.90, i.e. flat
+  across weekends and therefore mirrors and CI, not people.** That matches v1 being the older
+  generation, which cannot pay a v2 server at all. So the v2 client now comes first; v1 stays
+  documented right below it, unchanged and still tested.
+- `description` and keywords now name `@x402/fetch` / `@x402/axios`, which they never did.
+- New `examples/x402-fetch-v2.ts` — the README now leads with v2 while `examples/` only had a v1 file.
+
 ## 0.3.1
 
 - Verified and now covered by tests against **`@x402/fetch`** (v2, ~426k installs/mo) as well as

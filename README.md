@@ -14,7 +14,7 @@ This is that gate.
 
 **Works with:** Claude Agent SDK · Vercel AI SDK · Coinbase AgentKit · LangChain / LangGraph · CrewAI · any x402 client (JS + Python). One line, fail-closed by default.
 
-**New in 0.3 — [drop it onto the x402 payment path itself](#drop-in-for-x402-fetch--x402-axios).** No per-call wiring: wrap the fetch once and every 402 your agent answers is vetted before a signature exists.
+**New in 0.3 — [drop it onto the x402 payment path itself](#drop-in-for-the-x402-clients).** No per-call wiring: wrap the fetch once and every 402 your agent answers is vetted before a signature exists.
 
 <!-- Record a ~10s terminal GIF of `node demo.mjs` (scenario 2 getting blocked) and drop it here: -->
 <!-- ![demo](./demo.gif) -->
@@ -63,11 +63,35 @@ node demo.mjs --live     # REAL $0.002 x402 calls to https://402sentinel.com/api
                          #   npm i @x402/core @x402/evm viem  +  CLIENT_PRIVATE_KEY (Base-USDC-funded)
 ```
 
-## Drop-in for x402-fetch / x402-axios
+## Drop-in for the x402 clients
 
 `paymentGuard()` protects the payments you remembered to wrap. This protects **all of them** —
-it sits on the path `x402-fetch` and `x402-axios` already run, and reads the 402 challenge
-before `createPaymentHeader()` is ever called.
+it sits on the path your x402 client already runs, and reads the 402 challenge before
+`createPaymentHeader()` is ever called.
+
+Both client generations are supported and tested against the real libraries:
+`@x402/fetch` + `@x402/axios` (v2 — challenge in the `payment-required` header) and
+`x402-fetch` + `x402-axios` (v1 — challenge in the JSON body).
+
+### `@x402/fetch` (v2)
+
+```diff
+  import { wrapFetchWithPayment } from "@x402/fetch";
++ import { guardedFetch } from "@kaditang/agent-payment-guard/x402";
+
+- const fetchWithPay = wrapFetchWithPayment(fetch, client);
++ const fetchWithPay = wrapFetchWithPayment(
++   guardedFetch(fetch, { maxAmount: 0.05, dailyBudget: 5 }),
++   client,
++ );
+```
+
+Full runnable version: [`examples/x402-fetch-v2.ts`](./examples/x402-fetch-v2.ts).
+
+### `x402-fetch` (v1)
+
+Same shape — the guard reads either challenge format, so the wrapping is identical
+([`examples/x402-fetch.ts`](./examples/x402-fetch.ts)):
 
 ```diff
   import { wrapFetchWithPayment } from "x402-fetch";
