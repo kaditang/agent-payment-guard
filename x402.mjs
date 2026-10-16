@@ -19,8 +19,9 @@
 
 import { createPolicy, normalizeChallenge, PaymentBlockedError, hostOf, canonAddress } from "./policy.mjs";
 import { assessPayment } from "./sentinel.mjs";
+import { createRegistryCheck } from "./registry.mjs";
 
-export { PaymentBlockedError, createPolicy, normalizeChallenge };
+export { PaymentBlockedError, createPolicy, normalizeChallenge, createRegistryCheck };
 
 // ---------------------------------------------------------------------------
 
@@ -127,7 +128,7 @@ export function createSentinelEscalation(cfg) {
 /**
  * @returns {{allow:boolean, payable:Array, signals:Array, detail:string}}
  */
-export async function vetChallenge(policy, norm, escalate) {
+export async function vetChallenge(policy, norm, escalate, registry) {
   const signals = [];
   const payable = [];
   let hardDetail = null;
@@ -160,6 +161,21 @@ export async function vetChallenge(policy, norm, escalate) {
   if (hardDetail) return { allow: false, payable: [], signals, detail: hardDetail };
   if (!payable.length)
     return { allow: false, payable: [], signals, detail: "no payment option satisfies the policy (all filtered by network/scheme rules)" };
+
+  // Free, opt-in: is this payTo the one the seller registered in Bazaar? Runs on new payees only
+  // (the pin covers the rest) and BEFORE the paid escalation, so a mismatch never costs a check.
+  if (registry) {
+    for (const p of payable) {
+      const r = await registry({ resourceUrl: norm.resourceUrl, payTo: p.acc.payTo, firstSeen: p.firstSeen });
+      if (!r) continue;
+      for (const s of r.signals ?? []) signals.push({ ...s, source: "bazaar-registry", network: p.acc.network });
+      if (r.decision === "block") {
+        const d = r.signals?.[0]?.detail ?? "payee not registered";
+        hardDetail = hardDetail ? (hardDetail.includes(d) ? hardDetail : `${hardDetail}; ${d}`) : d;
+      }
+    }
+    if (hardDetail) return { allow: false, payable: [], signals, detail: hardDetail };
+  }
 
   if (escalate) {
     const remaining = [];
@@ -200,12 +216,15 @@ export async function vetChallenge(policy, norm, escalate) {
  * @param opts       policy options (see createPolicy) plus:
  *                     onBlock  — callback instead of throwing (return true to allow anyway)
  *                     sentinel — { on:"new-payto"|"always"|"never", live, payerKey, agentId }
+ *                     registry — true | { on, strict, endpoint, timeoutMs }: free Bazaar payee check on
+ *                                new payees (see registry.mjs). Opt-in: it calls 402sentinel.com.
  *                     policy   — reuse an existing policy object
  */
 export function guardedFetch(baseFetch = globalThis.fetch, opts = {}) {
   const policy = opts.policy ?? createPolicy(opts);
   if (baseFetch?.[GUARD_FETCH] === policy) return baseFetch; // already guarded by this policy
   const escalate = createSentinelEscalation(opts.sentinel);
+  const registry = createRegistryCheck(opts.registry);
   // url -> {payTo, amount, network, resourceUrl}, awaiting its paid retry. Bounded: a client
   // that abandons challenges (or is blocked upstream) would otherwise grow this forever.
   const pending = new Map();
@@ -241,7 +260,7 @@ export function guardedFetch(baseFetch = globalThis.fetch, opts = {}) {
     const norm = normalizeChallenge({ headers: response.headers, body: bodyText, requestUrl: response.url || url });
     if (!norm) return response; // a 402 we can't parse is not a payment we can vet — leave it to the client
 
-    const verdict = await vetChallenge(policy, norm, escalate);
+    const verdict = await vetChallenge(policy, norm, escalate, registry);
     if (!verdict.allow) {
       const override = opts.onBlock
         ? await opts.onBlock({ ...verdict, resourceUrl: norm.resourceUrl, accepts: norm.accepts })
@@ -329,6 +348,7 @@ export async function wrapFetchWithPaymentGuard(fetchImpl, walletClient, opts = 
 export async function guardAxios(axiosInstance, opts = {}) {
   const policy = opts.policy ?? createPolicy(opts);
   const escalate = createSentinelEscalation(opts.sentinel);
+  const registry = createRegistryCheck(opts.registry);
 
   // Re-wrap the ORIGINAL adapter, never a guard we installed earlier.
   const installed = axiosInstance.defaults.adapter;
@@ -400,7 +420,7 @@ export async function guardAxios(axiosInstance, opts = {}) {
     });
     if (!norm) return passThrough();
 
-    const verdict = await vetChallenge(policy, norm, escalate);
+    const verdict = await vetChallenge(policy, norm, escalate, registry);
     if (!verdict.allow) {
       const override = opts.onBlock ? await opts.onBlock({ ...verdict, resourceUrl: norm.resourceUrl, accepts: norm.accepts }) : false;
       if (override !== true) throw new PaymentBlockedError("block", verdict.signals, verdict.detail);

@@ -166,6 +166,23 @@ Every escalation spends **your** money, so escalations are capped at
 `sentinel.maxChecksPerHour` (default 50). Hitting the ceiling stops the spending, not the
 agent — otherwise a hostile seller could deny you service just by burning the budget.
 
+### First payment: is this the payee the seller registered? (free, opt-in)
+
+Pins protect every payment after the first one to a resource. For the first, turn on the
+registry check: on a payee this agent has never paid, the guard asks 402Sentinel's free
+`/api/payee` whether the seller registered that payTo in the x402 Bazaar catalog.
+
+```js
+guardedFetch(fetch, { maxAmount: 0.05, registry: true });
+```
+
+A payee the seller never registered for that host (`not_listed`), or one it has since replaced
+(`previously_listed`), is blocked through `onBlock`; a registered or unknown host passes with an
+info signal. An outage passes with `registry_unreachable` (`registry: { strict: true }` to stop
+instead). It sends the resource URL and the payTo to 402sentinel.com, which is why it is off by
+default. Try the endpoint directly:
+`curl "https://402sentinel.com/api/payee?url=https://stockwaves.net/api/rotation&payto=0x…"`
+
 ### Budgets and pins
 
 Spend is committed on the **paid retry**, not on the challenge, so a failed payment never

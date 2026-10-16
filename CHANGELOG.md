@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0
+
+**First-payment payee check (opt-in, free).** Trust-on-first-use pinning protects every payment
+after the first one to a resource; the first payee seen becomes the pin, so a server that is
+already hijacked when the agent first meets it gets the attacker's payTo pinned. `registry: true`
+closes that gap: on a NEW payee the guard asks 402Sentinel's free `GET /api/payee` whether that
+payTo is the one the seller registered in the CDP Bazaar catalog (built from daily snapshots; the
+catalog itself keeps no history and cannot be queried per resource).
+
+- `not_listed` (host registered, this payee never) and `previously_listed` (rotated away) block
+  through the normal `onBlock` path; `listed_for_resource`, `listed_for_host` and `unknown_host`
+  pass with an info signal. Runs before the paid Sentinel escalation, so a mismatch costs nothing.
+- Fails open on an outage (`registry_unreachable`), closed with `registry: { strict: true }`.
+- Cached 24h per resource + payee; capped at 30 lookups/min client-side.
+- Matches on the address only: Bazaar names the same chain "base" or "eip155:8453" depending on
+  the seller, and an EVM payee is one address on every chain.
+- Opt-in because the local checks make no network call; this one sends the resource URL and the
+  payTo (both public, registered by the seller) to 402sentinel.com.
+
 ## 0.3.2
 
 Docs only — no behaviour change.
