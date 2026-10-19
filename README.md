@@ -1,5 +1,8 @@
 # agent-payment-guard
 
+> [!WARNING]
+> **Retirement notice.** The optional online checks (the Bazaar payee registry check and the Sentinel firewall) call **402sentinel.com**, which will be retired on **31 October 2026**; the domain will not be renewed and lapses in May 2027. The local policy checks keep working offline. Turn the online checks off (no `registry: true`, no Sentinel calls), or point them only at an endpoint you trust — **do not trust responses from 402sentinel.com after May 2027.** The package is deprecated; the code stays here under its licence.
+
 [![npm](https://img.shields.io/npm/v/@kaditang/agent-payment-guard)](https://www.npmjs.com/package/@kaditang/agent-payment-guard) [![ci](https://github.com/kaditang/agent-payment-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/kaditang/agent-payment-guard/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue)
 
 **A pre-pay risk gate for autonomous payment agents.** Before your agent signs a payment, it
