@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 — 2026-10-19 (final)
+
+- 402Sentinel was retired on 2026-10-31. The registry check and the live firewall no longer have a default endpoint; `402sentinel.com` is refused even when configured, because the domain lapses in May 2027 and could then be registered by someone else (`retired.mjs`).
+- `registry: true` without an `endpoint` now disables the check with a single warning, instead of calling 402sentinel.com. Local policy checks are unchanged.
+- The package is deprecated.
+
 ## 0.4.0
 
 **First-payment payee check (opt-in, free).** Trust-on-first-use pinning protects every payment

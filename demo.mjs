@@ -2,7 +2,7 @@
 // KILLER DEMO — a payment agent's tool calls, gated by 402Sentinel.
 //
 //   node demo.mjs            # MOCK firewall (zero deps, instant) — shows the gate logic
-//   node demo.mjs --live     # REAL $0.002 x402 calls to https://402sentinel.com/api/firewall
+//   node demo.mjs --live     # x402-paid calls to SENTINEL_BASE_URL (the hosted 402Sentinel was retired 2026-10-31)
 //                            #   needs: npm i @x402/core @x402/evm viem  +  CLIENT_PRIVATE_KEY
 //
 // Each scenario is a payment the agent is ABOUT to make. paymentGuard consults the firewall
@@ -49,4 +49,4 @@ for (const s of scenarios) {
   console.log(`     signals: ${v.signals.length ? v.signals.map((x) => `${x.signal}(${x.severity})`).join(", ") : "none"}`);
   console.log("");
 }
-console.log(`  ${blocked}/3 dangerous payments stopped by the pre-pay gate.${live ? "" : "  (run with --live to verify against the real 402Sentinel.)"}\n`);
+console.log(`  ${blocked}/3 dangerous payments stopped by the pre-pay gate.${live ? "" : "  (the hosted 402Sentinel was retired on 2026-10-31; --live needs SENTINEL_BASE_URL.)"}\n`);

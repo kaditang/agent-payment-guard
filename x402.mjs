@@ -217,7 +217,7 @@ export async function vetChallenge(policy, norm, escalate, registry) {
  *                     onBlock  — callback instead of throwing (return true to allow anyway)
  *                     sentinel — { on:"new-payto"|"always"|"never", live, payerKey, agentId }
  *                     registry — true | { on, strict, endpoint, timeoutMs }: free Bazaar payee check on
- *                                new payees (see registry.mjs). Opt-in: it calls 402sentinel.com.
+ *                                new payees (see registry.mjs). Opt-in; needs `endpoint` since 0.5.0.
  *                     policy   — reuse an existing policy object
  */
 export function guardedFetch(baseFetch = globalThis.fetch, opts = {}) {

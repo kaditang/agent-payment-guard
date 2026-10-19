@@ -8,15 +8,15 @@
 // x402 has no binding between a domain and its payTo, but most sellers DO declare their payTo in
 // the CDP Bazaar catalog. 402Sentinel keeps daily snapshots of it (the catalog keeps no history
 // and cannot be queried per resource) and answers, free:
-//   GET https://402sentinel.com/api/payee?url=<resource>&payto=<payTo from the 402>
+//   GET <endpoint>?url=<resource>&payto=<payTo from the 402>   (was https://402sentinel.com/api/payee)
 // → listed_for_resource | listed_for_host | previously_listed | not_listed | unknown_host
 //
-// OPT-IN (`registry: true`). This package's local checks make no network call; this one sends
-// the resource URL and the payTo (both public: they are what the seller registered) to
-// 402sentinel.com, once per new payee. Measured 2026-10-16 across 38,601 listings: a registered
+// OPT-IN, and since 0.5.0 it needs an explicit `endpoint` (402Sentinel was retired on 2026-10-31; see
+// retired.mjs). This package's local checks make no network call; this one sends the resource URL and
+// the payTo (both public: they are what the seller registered) to that endpoint, once per new payee. Measured 2026-10-16 across 38,601 listings: a registered
 // payee was fully REPLACED on only 9 resources in 4 days, so a mismatch is rare and worth a stop.
 
-const DEFAULT_ENDPOINT = "https://402sentinel.com/api/payee";
+import { checkEndpoint, warnOnce } from "./retired.mjs";
 
 // verdict -> how the guard treats it. "block" goes through the normal onBlock override path.
 const RULES = {
@@ -35,9 +35,13 @@ export function createRegistryCheck(cfg) {
   if (!cfg) return null;
   const c = cfg === true ? {} : cfg;
   if (c.on === "never") return null;
+  const ep = checkEndpoint(c.endpoint, "registry check");
+  if (!ep.ok) {
+    warnOnce(`${ep.reason} The registry check is OFF; local policy checks still apply.`);
+    return null;
+  }
   const {
     on = "new-payto",
-    endpoint = DEFAULT_ENDPOINT,
     strict = false,
     timeoutMs = 5000,
     maxChecksPerMinute = 30, // the service allows 60/min per IP; stay well under it
@@ -71,7 +75,7 @@ export function createRegistryCheck(cfg) {
       // No network parameter on purpose: Bazaar lists some sellers as "base" and others as
       // "eip155:8453"; an EVM payTo is one address on every chain, so matching on the address
       // alone avoids blocking a genuine payee over a naming difference.
-      const u = `${endpoint}?url=${encodeURIComponent(resourceUrl)}&payto=${encodeURIComponent(payTo)}`;
+      const u = `${ep.url}?url=${encodeURIComponent(resourceUrl)}&payto=${encodeURIComponent(payTo)}`;
       const r = await doFetch(u, { signal: AbortSignal.timeout(timeoutMs), headers: { accept: "application/json" } });
       if (!r.ok) throw new Error(`registry HTTP ${r.status}`);
       body = await r.json();

@@ -1,19 +1,20 @@
 // 402Sentinel buyer-side payment firewall client.
 //
-// assessPayment() POSTs a candidate payment to https://402sentinel.com/api/firewall and
+// assessPayment() POSTs a candidate payment to <SENTINEL_BASE_URL>/api/firewall and
 // returns the verdict (allow | hold | block) + the signals that drove it. This is the
 // "pre-pay risk gate" an autonomous payment agent should consult BEFORE it signs.
 //
 // Two modes:
 //   MOCK (default)  — zero-dependency, instant. Faithfully mirrors 402Sentinel's DETERMINISTIC
 //                     hard-block rules so anyone can run the demo with no funds / no install.
-//   LIVE (--live)   — a real x402-paid call ($0.002 USDC on Base) to the production firewall.
+//   LIVE (--live)   — a real x402-paid call to a firewall you run. The hosted 402Sentinel was retired
+//                     on 2026-10-31: since 0.5.0 SENTINEL_BASE_URL is required and 402sentinel.com is refused.
 //
 // The real service adds learned per-signal precision, velocity/history state, sock-puppet
 // detection and counterparty risk on top of these deterministic rules — but the hard blocks
 // below (prompt-injection destination, intent mismatch) are exactly what it enforces.
 
-const BASE = process.env.SENTINEL_BASE_URL ?? "https://402sentinel.com";
+import { checkEndpoint } from "./retired.mjs";
 
 /** Deterministic mirror of 402Sentinel's hard-block firewall signals. */
 export function mockFirewall({ payment, context }) {
@@ -50,6 +51,8 @@ export function mockFirewall({ payment, context }) {
 
 /** Live x402-paid call to the production firewall. Lazy-imports the x402 client deps. */
 export async function liveFirewall({ agent_id, payment, context }, payerKey) {
+  const ep = checkEndpoint(process.env.SENTINEL_BASE_URL, "live firewall");
+  if (!ep.ok) throw new Error(ep.reason);
   let createPaymentPayload, encodePaymentSignatureHeader, registerExactEvmScheme, x402Client, x402HTTPClient, privateKeyToAccount;
   try {
     ({ x402Client, x402HTTPClient } = await import("@x402/core/client"));
@@ -59,7 +62,7 @@ export async function liveFirewall({ agent_id, payment, context }, payerKey) {
   } catch {
     throw new Error("--live needs: npm i @x402/core @x402/evm viem  (and CLIENT_PRIVATE_KEY = a Base-mainnet USDC-funded key)");
   }
-  const url = `${BASE}/api/firewall`;
+  const url = `${ep.url}/api/firewall`;
   const body = JSON.stringify({ agent_id, payment, context });
   const post = { method: "POST", headers: { "content-type": "application/json" }, body };
   const probe = await fetch(url, post);
